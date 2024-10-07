@@ -7,13 +7,17 @@ import "./TrophyToken.sol";
 
 contract SocialMediaPlatform is ERC721URIStorage {
 
-    uint256 private nextTokenId = 1;
+    uint256 private nextProfileId = 1;
+    uint256 private nextPostId = 1;
+    uint256 private nextSongId = 1;
+    uint256 private tweetCount = 0;  // Separate counter for tweets
 
     TrophyToken public trophyToken;
 
     mapping(address => uint256) public profiles;
 
     struct Content {
+        uint256 id;
         address owner;
         string contentURI;
         uint256 tipsReceived;
@@ -25,8 +29,8 @@ contract SocialMediaPlatform is ERC721URIStorage {
     }
 
     mapping(uint256 => Content) public posts;
-    mapping(uint256 => Content) public tweets;
     mapping(uint256 => Content) public songs;
+    mapping(uint256 => Content) public tweets;  // Separate mapping for tweets
 
     mapping(uint256 => Comment[]) public postComments;
     mapping(uint256 => Comment[]) public tweetComments;
@@ -34,7 +38,7 @@ contract SocialMediaPlatform is ERC721URIStorage {
     event ProfileMinted(address indexed user, uint256 tokenId);
     event ProfileSet(address indexed user, uint256 tokenId);
     event PostCreated(address indexed user, uint256 tokenId);
-    event TweetCreated(address indexed user, uint256 tokenId);
+    event TweetCreated(uint256 id, string contentHash, uint256 tipsReceived, address owner);
     event SongUploaded(address indexed user, uint256 tokenId);
     event TrophiesEarned(address indexed user, uint256 amount);
     event PostTipped(address indexed tipper, uint256 indexed postId, uint256 amount);
@@ -46,8 +50,9 @@ contract SocialMediaPlatform is ERC721URIStorage {
         trophyToken = _trophyToken;
     }
 
+    // Mint a new profile (NFT-based)
     function mintProfile(string calldata profileURI) external {
-        uint256 newProfileId = nextTokenId++;
+        uint256 newProfileId = nextProfileId++;
         _mint(msg.sender, newProfileId);
         _setTokenURI(newProfileId, profileURI);
 
@@ -57,6 +62,7 @@ contract SocialMediaPlatform is ERC721URIStorage {
         emit ProfileSet(msg.sender, newProfileId);
     }
 
+    // Set a specific profile as the current profile (NFT-based)
     function setProfile(uint256 _id) external {
         require(ownerOf(_id) == msg.sender, "Must own the NFT you want to set as your profile.");
         profiles[msg.sender] = _id;
@@ -64,41 +70,110 @@ contract SocialMediaPlatform is ERC721URIStorage {
         emit ProfileSet(msg.sender, _id);
     }
 
+    // View a specific profile by address
+    function viewProfile(address user) external view returns (uint256) {
+        return profiles[user];
+    }
+
+    // View all profiles (returns an array of token IDs)
+    function viewAllProfiles() external view returns (uint256[] memory) {
+        uint256 totalSupply = nextProfileId - 1;
+        uint256[] memory allProfiles = new uint256[](totalSupply);
+        uint256 counter = 0;
+
+        for (uint256 i = 1; i <= totalSupply; i++) {
+            allProfiles[counter] = i;
+            counter++;
+        }
+
+        return allProfiles;
+    }
+
+    // Create a new post (NFT-based)
     function createPost(string calldata postURI) external {
-        uint256 newPostId = nextTokenId++;
+        uint256 newPostId = nextPostId++;
         _mint(msg.sender, newPostId);
         _setTokenURI(newPostId, postURI);
 
-        posts[newPostId] = Content(msg.sender, postURI, 0);
+        posts[newPostId] = Content(newPostId, msg.sender, postURI, 0);
 
         emit PostCreated(msg.sender, newPostId);
     }
 
-    function createTweet(string calldata tweetURI) external {
-        uint256 newTweetId = nextTokenId++;
-        _mint(msg.sender, newTweetId);
-        _setTokenURI(newTweetId, tweetURI);
-
-        tweets[newTweetId] = Content(msg.sender, tweetURI, 0);
-
-        emit TweetCreated(msg.sender, newTweetId);
+    // View a specific post
+    function viewPost(uint256 postId) external view returns (Content memory) {
+        return posts[postId];
     }
 
+    // View all posts
+    function viewAllPosts() external view returns (Content[] memory) {
+        Content[] memory allPosts = new Content[](nextPostId - 1);
+        uint256 counter = 0;
+
+        for (uint256 i = 1; i < nextPostId; i++) {
+            allPosts[counter] = posts[i];
+            counter++;
+        }
+
+        return allPosts;
+    }
+
+    // Upload a song (NFT-based)
     function uploadSong(string calldata songURI) external {
-        uint256 newSongId = nextTokenId++;
+        uint256 newSongId = nextSongId++;
         _mint(msg.sender, newSongId);
         _setTokenURI(newSongId, songURI);
 
-        songs[newSongId] = Content(msg.sender, songURI, 0);
+        songs[newSongId] = Content(newSongId, msg.sender, songURI, 0);
 
         emit SongUploaded(msg.sender, newSongId);
     }
 
-    function earnTrophies(address user, uint256 amount) external {
-        trophyToken.mintTrophies(user, amount);
-        emit TrophiesEarned(user, amount);
+    // View a specific song
+    function viewSong(uint256 songId) external view returns (Content memory) {
+        return songs[songId];
     }
 
+    // View all songs
+    function viewAllSongs() external view returns (Content[] memory) {
+        Content[] memory allSongs = new Content[](nextSongId - 1);
+        uint256 counter = 0;
+
+        for (uint256 i = 1; i < nextSongId; i++) {
+            allSongs[counter] = songs[i];
+            counter++;
+        }
+
+        return allSongs;
+    }
+
+    // Upload a tweet (Non-NFT-based)
+    function uploadTweet(string memory _tweetHash) external {
+        require(balanceOf(msg.sender) > 0, "Must own an NFT to tweet");
+        require(bytes(_tweetHash).length > 0, "Cannot pass empty hash");
+
+        tweetCount++;
+        tweets[tweetCount] = Content(tweetCount, msg.sender, _tweetHash, 0);
+
+        emit TweetCreated(tweetCount, _tweetHash, 0, msg.sender);
+    }
+
+    // View a specific tweet (Non-NFT-based)
+    function viewTweet(uint256 tweetId) external view returns (Content memory) {
+        return tweets[tweetId];
+    }
+
+    // View all tweets (Non-NFT-based)
+    function viewAllTweets() external view returns (Content[] memory) {
+        Content[] memory allTweets = new Content[](tweetCount);
+        for (uint256 i = 1; i <= tweetCount; i++) {
+            allTweets[i - 1] = tweets[i];
+        }
+        return allTweets;
+    }
+
+
+    // Tipping functionality for posts
     function tipPost(uint256 postId) external payable {
         require(posts[postId].owner != address(0), "Post does not exist.");
         require(msg.value > 0, "Tip amount must be greater than zero.");
@@ -120,47 +195,12 @@ contract SocialMediaPlatform is ERC721URIStorage {
         emit TweetTipped(msg.sender, tweetId, msg.value);
     }
 
-    // Adding a comment to a post
-    function commentOnPost(uint256 postId, string calldata commentText) external {
-        require(posts[postId].owner != address(0), "Post does not exist.");
+    // Mint ERC20 tokens for event completion
+    function mintTokensForEventCompletion(address user, uint256 amount) external {
+        // Mint ERC20 tokens using the trophyToken contract instance
+        trophyToken.mintTrophies(user, amount);
 
-        postComments[postId].push(Comment(msg.sender, commentText));
-
-        emit PostCommented(msg.sender, postId, commentText);
-    }
-
-    // Adding a comment to a tweet
-    function commentOnTweet(uint256 tweetId, string calldata commentText) external {
-        require(tweets[tweetId].owner != address(0), "Tweet does not exist.");
-
-        tweetComments[tweetId].push(Comment(msg.sender, commentText));
-
-        emit TweetCommented(msg.sender, tweetId, commentText);
-    }
-
-    function viewProfile(address user) external view returns (uint256) {
-        return profiles[user];
-    }
-
-    function viewPost(uint256 postId) external view returns (Content memory) {
-        return posts[postId];
-    }
-
-    function viewTweet(uint256 tweetId) external view returns (Content memory) {
-        return tweets[tweetId];
-    }
-
-    function viewSong(uint256 songId) external view returns (Content memory) {
-        return songs[songId];
-    }
-
-    // View comments on a post
-    function viewPostComments(uint256 postId) external view returns (Comment[] memory) {
-        return postComments[postId];
-    }
-
-    // View comments on a tweet
-    function viewTweetComments(uint256 tweetId) external view returns (Comment[] memory) {
-        return tweetComments[tweetId];
+        // Emit an event to log token minting
+        emit TrophiesEarned(user, amount);
     }
 }
